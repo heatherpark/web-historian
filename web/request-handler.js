@@ -3,19 +3,6 @@ var archive = require('../helpers/archive-helpers');
 var fs = require('fs');
 var httpHelp = require('./http-helpers');
 
-var actions = {
-  'GET': handleGet,
-  'POST': handlePost
-};
-
-exports.handleRequest = function(req, res) {
-  var method = req.method;
-
-  if (method in actions) {
-    actions[method](req, res);
-  }
-};
-
 var handleGet = function(req, res) {
   if (req.url === '/') {
     var indexPath = archive.paths.siteAssets + '/index.html';
@@ -38,17 +25,17 @@ var handleGet = function(req, res) {
 var handlePost = function(req, res) {
   var data = '';
 
-  res.on('data', function(chunk) {
+  req.on('data', function(chunk) {
     data += chunk;
   });
 
   req.on('end', function() {
     var url = data.split('=')[1];
 
-    archive.isUrlInList(url)
+    archive.isUrlInListAsync(url)
       .then(function(is) {
         if (!is) {
-          archive.addUrlToList(url)
+          archive.addUrlToListAsync(url)
           .then(function() {
             var loadingPagePath = archive.paths.siteAssets + '/loading.html';
             httpHelp.serveAssets(res, loadingPagePath, function(err, data) {
@@ -65,4 +52,17 @@ var handlePost = function(req, res) {
         }
       });
   });
+};
+
+var actions = {
+  'GET': handleGet,
+  'POST': handlePost
+};
+
+exports.handleRequest = function(req, res) {
+  var method = req.method;
+
+  if (method in actions) {
+    actions[method](req, res);
+  }
 };

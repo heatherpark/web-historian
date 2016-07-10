@@ -28,11 +28,22 @@ exports.initialize = function(pathsObj) {
 // modularize your code. Keep it clean!
 
 exports.readListOfUrls = function(callback) {
+  fs.readFile(exports.paths.list, 'utf8', function(err, data) {
+    var urls = data.split('\n').filter(function(element) {
+      return element !== '';
+    });
+
+    callback(urls);
+  });
+};
+
+exports.readListOfUrlsAsync = function() {
   return new Promise(function(resolve, reject) {
     fs.readFile(exports.paths.list, 'utf8', function(err, data) {
       if (err) {
         reject(err);
       } else {
+
         var urls = data.split('\n').filter(function(element) {
           return element !== '';
         });
@@ -43,16 +54,34 @@ exports.readListOfUrls = function(callback) {
 };
 
 exports.isUrlInList = function(url, callback) {
-  return exports.readListOfUrls()
+  exports.readListOfUrls(function(urls) {
+    callback(_.contains(urls, url));
+  });
+};
+
+exports.isUrlInListAsync = function(url) {
+  return exports.readListOfUrlsAsync()
   .then(function(urls) {
+
     return _.contains(urls, url);
   });
 };
 
-exports.addUrlToList = function(url) {
-  return exports.readListOfUrls()
+exports.addUrlToList = function(url, callback) {
+  exports.readListOfUrls(function(urls) {
+    exports.isUrlInList(url, function(is) {
+      if (!is) {
+        fs.appendFile(exports.paths.list.url + '\n');
+      }
+      callback();
+    });
+  });
+};
+
+exports.addUrlToListAsync = function(url) {
+  return exports.readListOfUrlsAsync()
   .then(function(urls) {
-    return isUrlInList(url);
+    return exports.isUrlInListAsync(url);
   })
   .then(function(is) {
     if (!is) {
@@ -61,7 +90,17 @@ exports.addUrlToList = function(url) {
   });
 };
 
-exports.isUrlArchived = function(url) {
+exports.isUrlArchived = function(url, callback) {
+  fs.readdir(exports.paths.archivedSites, function(err, data) {
+    if (err) {
+      console.log(err);
+    } else {
+      callback(_.contains(data, url));
+    }
+  });
+};
+
+exports.isUrlArchivedAsync = function(url) {
   return new Promise(function(resolve, reject) {
     fs.readdir(exports.paths.archivedSites, function(err, data) {
       if (err) {
@@ -74,6 +113,26 @@ exports.isUrlArchived = function(url) {
 };
 
 exports.downloadUrls = function(urls) {
+  urls.forEach(function(url) {
+    exports.isUrlArchived(url, function(exists) {
+      if (exists) {
+        http.get('http://' + url + '/index.html', function(response) {
+          var data = '';
+
+          response.on('data', function(chunk) {
+            data += chunk;
+          });
+
+          response.on('end', function() {
+            fs.writeFile(exports.paths.archivedSites + '/' + url, data);
+          });
+        });
+      }
+    });
+  });
+};
+
+exports.downloadUrlsAsync = function(urls) {
   urls.forEach(function(url) {
     exports.isUrlArchived(url)
     .then(function(exists) {
