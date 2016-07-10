@@ -1,6 +1,8 @@
 var fs = require('fs');
 var path = require('path');
 var _ = require('underscore');
+var http = require('http');
+var Promise = require('bluebird');
 
 /*
  * You will need to reuse the same paths many times over in the course of this sprint.
@@ -25,17 +27,69 @@ exports.initialize = function(pathsObj) {
 // The following function names are provided to you to suggest how you might
 // modularize your code. Keep it clean!
 
-exports.readListOfUrls = function() {
+exports.readListOfUrls = function(callback) {
+  return new Promise(function(resolve, reject) {
+    fs.readFile(exports.paths.list, 'utf8', function(err, data) {
+      if (err) {
+        reject(err);
+      } else {
+        var urls = data.split('\n').filter(function(element) {
+          return element !== '';
+        });
+        resolve(urls);
+      }
+    });
+  });
 };
 
-exports.isUrlInList = function() {
+exports.isUrlInList = function(url, callback) {
+  return exports.readListOfUrls()
+  .then(function(urls) {
+    return _.contains(urls, url);
+  });
 };
 
-exports.addUrlToList = function() {
+exports.addUrlToList = function(url) {
+  return exports.readListOfUrls()
+  .then(function(urls) {
+    return isUrlInList(url);
+  })
+  .then(function(is) {
+    if (!is) {
+      fs.appendFile(exports.paths.list, url + '\n');
+    }
+  });
 };
 
-exports.isUrlArchived = function() {
+exports.isUrlArchived = function(url) {
+  return new Promise(function(resolve, reject) {
+    fs.readdir(exports.paths.archivedSites, function(err, data) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(_.contains(data, url));
+      }
+    });
+  });
 };
 
-exports.downloadUrls = function() {
+exports.downloadUrls = function(urls) {
+  urls.forEach(function(url) {
+    exports.isUrlArchived(url)
+    .then(function(exists) {
+      if (exists) {
+        http.get('http://' + url + '/index.html', function(response) {
+          var data = '';
+
+          response.on('data', function(chunk) {
+            data += chunk;
+          });
+
+          response.on('end', function() {
+            fs.writeFile(exports.paths.archivedSites + '/' + url, data);
+          });
+        });
+      }
+    });
+  });
 };
