@@ -8,7 +8,7 @@ var actions = {
   'POST': handlePost
 };
 
-exports.handleRequest = function (req, res) {
+exports.handleRequest = function(req, res) {
   var method = req.method;
 
   if (method in actions) {
@@ -36,5 +36,33 @@ var handleGet = function(req, res) {
 };
 
 var handlePost = function(req, res) {
+  var data = '';
 
+  res.on('data', function(chunk) {
+    data += chunk;
+  });
+
+  req.on('end', function() {
+    var url = data.split('=')[1];
+
+    archive.isUrlInList(url)
+      .then(function(is) {
+        if (!is) {
+          archive.addUrlToList(url)
+          .then(function() {
+            var loadingPagePath = archive.paths.siteAssets + '/loading.html';
+            httpHelp.serveAssets(res, loadingPagePath, function(err, data) {
+              res.writeHead(302);
+              res.end(data);
+            });
+          });
+        } else {
+          var archivedPath = archive.paths.archivedSites + '/' + url;
+          httpHelp.serveAssets(res, archivedPath, function(err, data) {
+            res.writeHead(200);
+            res.end(data);
+          });
+        }
+      });
+  });
 };
